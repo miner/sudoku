@@ -15,7 +15,7 @@
 ;; Slightly modified by SEM 3/30/11
 ;; 07/17/20  10:41 by miner -- modernizing a bit
 
-(ns miner.sudoku
+(ns kramer.sudoku
   (:use [clojure.string :only [join trim]])
   (:require [clojure.java.io :as io]))
 
@@ -65,15 +65,13 @@
                     (when-not (#{\0 \.} c)
                       (Character/digit c 10)))))
 
-(def init-any-values (into {} (for [s squares] [s digits])))
-
 (defn parse-grid
   "Convert grid to a map of possible values, {square: digits}. Return false
   on contradiction"
   [grid]
-  (reduce
-   (fn [values [s d]] (or (assign values s d) (reduced nil)))
-   init-any-values
+  (reduce-true
+   (fn [values [s d]] (assign values s d))
+   (into {} (for [s squares] [s digits])) ;to start, any square can be any digit
    (remove (comp nil? val) (grid-values grid))))
 
 ;;; Constraint Propagation ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -143,7 +141,7 @@
 
 ;;; Utilities ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn reduce-true-KRAMER
+(defn- reduce-true
   "Like reduce but short-circuits upon logical false"
   [f val coll]
   (when val
@@ -152,13 +150,6 @@
         val
         (when-let [val* (f val (first coll))]
           (recur val* (rest coll)))))))
-
-(defn reduce-true
-  "Like reduce but short-circuits upon logical false"
-  [f init coll]
-  (when init
-    (reduce #(or (f % %2) (reduced nil)) init coll)))
-
 
 (defn sum [xs] (reduce + xs))
 
@@ -171,12 +162,11 @@
 ;;; System Test ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Slightly faster to make sorted-digits once from a sorted-set of digits
-(def sorted-digits (sort digits))
-
-(defn solved?
-  "A puzzle is solved if each unit is a permutation of the digits 1 to 9"
-  [values]
-  (and values (every? #(= sorted-digits (sort (mapcat values %))) unitlist)))
+(let [sorted-digits (sort digits)]
+  (defn solved?
+    "A puzzle is solved if each unit is a permutation of the digits 1 to 9"
+    [values]
+    (and values (every? #(= sorted-digits (sort (mapcat values %))) unitlist))))
 
 (defmacro time*
   "Evaluates expr and returns [value time-in-seconds]"
@@ -227,15 +217,3 @@
   (solve-all (from-file (io/file data-dir "hardest.txt")) "hardest")
   (solve-all (repeatedly 99 random-puzzle) "random"))
 
-
-(defn solve-grids
-  [solve grids]
-  (assert (every? solved? (map solve grids))))
-
-(defn run-bench [solve]
-  (solve-grids solve (from-file (io/file data-dir "easy50.txt") "========"))
-  (solve-grids solve (from-file (io/file data-dir "top95.txt")))
-  (solve-grids solve (from-file (io/file data-dir "hardest.txt")))
-  true)
-
-  
