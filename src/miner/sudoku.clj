@@ -113,15 +113,15 @@
                      values)]
         (reduce
          (fn [values u]
-           (if (seq values)
+           (if (nil? values)
+             (reduced nil)
              (let [dplaces (for [s u :when ((values s) d)] s)]
                (if-not (zero? (count dplaces)) ;must be a place for this value
                  (if (= 1 (count dplaces))
                    ;; Only one spot remaining for d in a unit -- assign it
                    (assign values (first dplaces) d)
                    values)
-                 (reduced nil)))
-             (reduced nil)))
+                 (reduced nil)))))
          values
          (units s))))))
 
