@@ -13,10 +13,10 @@
 ;; Original:
 ;; http://jkkramer.wordpress.com/2011/03/29/clojure-python-side-by-side/
 ;; Slightly modified by SEM 3/30/11
-;; 07/17/20  10:41 by miner -- modernizing a bit
+;; 07/17/20  10:41 by miner -- modernized a bit
 
 (ns miner.sudoku
-  (:use [clojure.string :only [join trim]])
+  (:require [clojure.string :as str])
   (:require [clojure.java.io :as io]))
 
 
@@ -34,7 +34,7 @@
 (def peers (into {} (for [s squares]
                       [s (-> (reduce into #{} (units s)) (disj s))])))
 
-(declare reduce-true assign eliminate)
+(declare assign eliminate)
 
 ;;; Unit Tests ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -61,9 +61,19 @@
 (defn grid-values
   "Convert grid into a map of {square: digit}, with nil for empties"
   [grid]
-  (zipmap squares (for [c grid :when (or (Character/isDigit c) (= \. c))]
-                    (when-not (#{\0 \.} c)
-                      (Character/digit c 10)))))
+  (zipmap squares (for [^Character c grid]
+                    (case c
+                      \1 1
+                      \2 2
+                      \3 3
+                      \4 4
+                      \5 5
+                      \6 6
+                      \7 7
+                      \8 8
+                      \9 9
+                      nil))))
+
 
 (def init-any-values (into {} (for [s squares] [s digits])))
 
@@ -83,9 +93,9 @@
   except d from the square, and doing constraint propogation. Returns
   false if a contradiction results"
   [values s d]
-  (reduce-true #(eliminate %1 s %2)
-               values
-               (disj (values s) d)))
+  (reduce #(or (eliminate %1 s %2) (reduced nil))
+          values
+          (disj (values s) d)))
 
 (defn eliminate
   "Eliminate digit d from square s and do any appropriate constraint
@@ -97,18 +107,20 @@
       (let [values (update-in values [s] disj d)
             values (if (= 1 (count (values s)))
                      ;; Only one digit left, eliminate it from peers
-                     (reduce-true #(eliminate %1 %2 (first (%1 s)))
-                                  values
-                                  (peers s))
+                     (reduce #(or (eliminate %1 %2 (first (%1 s))) (reduced nil))
+                             values
+                             (peers s))
                      values)]
-        (reduce-true
+        (reduce
          (fn [values u]
-           (let [dplaces (for [s u :when ((values s) d)] s)]
-             (when-not (zero? (count dplaces)) ;must be a place for this value
-               (if (= 1 (count dplaces))
-                 ;; Only one spot remaining for d in a unit -- assign it
-                 (assign values (first dplaces) d)
-                 values))))
+           (when (seq values)
+             (let [dplaces (for [s u :when ((values s) d)] s)]
+               (if-not (zero? (count dplaces)) ;must be a place for this value
+                 (if (= 1 (count dplaces))
+                   ;; Only one spot remaining for d in a unit -- assign it
+                   (assign values (first dplaces) d)
+                   values)
+                 (reduced nil)))))
          values
          (units s))))))
 
@@ -118,11 +130,11 @@
   "Display values as a 2D grid"
   [values]
   (let [width (inc (apply max (map (comp count values) squares)))
-        line (join \+ (repeat 3 (join (repeat (* 3 width) \-))))]
+        line (str/join \+ (repeat 3 (str/join (repeat (* 3 width) \-))))]
     (doseq [r rows]
-      (println (join (for [c cols]
+      (println (str/join (for [c cols]
                        (format (str "%-" width "s%s")
-                               (join (values [r c]))
+                               (str/join (values [r c]))
                                (if (#{3 6} c) "|" "")))))
       (when (#{:c :f} r) (println line)))))
 
@@ -143,30 +155,13 @@
 
 ;;; Utilities ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn reduce-true-KRAMER
-  "Like reduce but short-circuits upon logical false"
-  [f val coll]
-  (when val
-    (loop [val val, coll coll]
-      (if (empty? coll)
-        val
-        (when-let [val* (f val (first coll))]
-          (recur val* (rest coll)))))))
-
-(defn reduce-true
-  "Like reduce but short-circuits upon logical false"
-  [f init coll]
-  (when init
-    (reduce #(or (f % %2) (reduced nil)) init coll)))
-
-
 (defn sum [xs] (reduce + xs))
 
-(defn transpose [xs] (apply map vector xs))
-
-(defn from-file
-  ([file] (from-file file "\n"))
-  ([file sep] (-> file slurp trim (.split sep))))
+(defn from-file [file]
+  (with-open [rdr (io/reader file)]
+    (doall (line-seq rdr))))
+  
+  
 
 ;;; System Test ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -178,6 +173,7 @@
   [values]
   (and values (every? #(= sorted-digits (sort (mapcat values %))) unitlist)))
 
+;; use Criterium instead of this for benchmarking
 (defmacro time*
   "Evaluates expr and returns [value time-in-seconds]"
   [expr]
@@ -210,7 +206,7 @@
            values (first (filter #(or (not %) (done? %)) steps))]
        (if (nil? values)
          (recur n) ;contradiction - retry
-         (join (for [ds (map values squares)]
+         (str/join (for [ds (map values squares)]
                  (if (next ds) \. (first ds))))))))
 
 (def grid1 "003020600900305001001806400008102900700000008006708200002609500800203009005010300")
@@ -222,20 +218,26 @@
 ;; Expected to be run at the REPL
 (defn runall []
   (unit-tests)
-  (solve-all (from-file (io/file data-dir "easy50.txt") "========") "easy")
+  (solve-all (from-file (io/file data-dir "easy50grids.txt")) "easy")
   (solve-all (from-file (io/file data-dir "top95.txt")) "hard")
   (solve-all (from-file (io/file data-dir "hardest.txt")) "hardest")
   (solve-all (repeatedly 99 random-puzzle) "random"))
 
 
-(defn solve-grids
-  [solve grids]
+(defn solve-grids [solve grids]
   (assert (every? solved? (map solve grids))))
 
-(defn run-bench [solve]
-  (solve-grids solve (from-file (io/file data-dir "easy50.txt") "========"))
-  (solve-grids solve (from-file (io/file data-dir "top95.txt")))
-  (solve-grids solve (from-file (io/file data-dir "hardest.txt")))
-  true)
+(defn run-bench
+  ([] (run-bench solve))
+  ([solve]
+   (solve-grids solve (from-file (io/file data-dir "easy50grids.txt")))
+   (solve-grids solve (from-file (io/file data-dir "top95.txt")))
+   (solve-grids solve (from-file (io/file data-dir "hardest.txt")))
+   true))
 
   
+(comment
+  (require 'criterium.core)
+  (require '[miner.sudoku :as s])
+  (criterium.core/quick-bench (s/run-bench s/solve))
+  )
