@@ -174,26 +174,6 @@
   [values]
   (and values (every? #(= sorted-digits (sort (mapcat values %))) unitlist)))
 
-;; use Criterium instead of this for benchmarking
-(defmacro time*
-  "Evaluates expr and returns [value time-in-seconds]"
-  [expr]
-  `(let [start# (System/nanoTime)
-         ret# ~expr]
-     [ret# (/ (double (- (System/nanoTime) start#)) 1000000000.0)]))
-
-(defn solve-all
-  "Attempt to solve a sequence of grids. Report a summary of results."
-  [grids name]
-  (let [[results times] (transpose (map #(-> % solve solved? time*) grids))
-        solved (count (filter true? results))
-        n (count grids)]
-    (when (< 1 n)
-      (println
-       (format
-        "Solved %d of %d %s puzzles (avg %.2f secs (%.0f Hz), max %.2f secs)."
-        solved n name (/ (sum times) n) (/ n (sum times)) (apply max times))))))
-
 (defn random-puzzle
   "Make a random puzzle with N or more assignments. Restart on contradictions."
   ([] (random-puzzle 17))
@@ -216,21 +196,13 @@
 
 (def data-dir "resources/")
 
-;; Expected to be run at the REPL
-(defn runall []
-  (unit-tests)
-  (solve-all (from-file (io/file data-dir "easy50grids.txt")) "easy")
-  (solve-all (from-file (io/file data-dir "top95.txt")) "hard")
-  (solve-all (from-file (io/file data-dir "hardest.txt")) "hardest")
-  (solve-all (repeatedly 99 random-puzzle) "random"))
-
-
 (defn solve-grids [solve grids]
   (assert (every? solved? (map solve grids))))
 
 (defn run-bench
   ([] (run-bench solve))
   ([solve]
+   (unit-tests)
    (solve-grids solve (from-file (io/file data-dir "easy50grids.txt")))
    (solve-grids solve (from-file (io/file data-dir "top95.txt")))
    (solve-grids solve (from-file (io/file data-dir "hardest.txt")))
