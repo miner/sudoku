@@ -206,7 +206,11 @@
   ;;(assert (= 1 (bit-count n)))
   (Long/numberOfTrailingZeros n))
 
-
+;; not used
+(defn check-single-bit [n]
+  (if (= 1 (bit-count n))
+    n
+    -1))
 
 
 (defn assign
@@ -223,19 +227,13 @@
   "Eliminate digit d from square s and do any appropriate constraint
   propogation"
   [values s d]
-  ;(println "El Debug s d values" s d values)
   (if-not (bit-test (values s) d)
     values ;already eliminated
     (when-not (= (bit-set 0 d) (values s)) ;can't remove last value
       (let [values (update values s bit-clear d)
             values (if (= 1 (bit-count (values s)))
                      ;; Only one digit left, eliminate it from peers
-                     (reduce
-                      ;;#(or (eliminate %1 %2 (single-bit (%1 s))) (reduced nil))
-                      (fn [vs x]
-                        ;(println "red Debug x vs" x vs)
-                        (or (eliminate vs x (single-bit (vs s))) (reduced nil)))
-
+                     (reduce #(or (eliminate %1 %2 (single-bit (%1 s))) (reduced nil))
                              values
                              (vp s))
                      values)]
@@ -298,16 +296,17 @@
 (def sorted-digits (sort digits))
 
 
-(defn nine-unique? [xs]
-  ;; SEM perhaps overly cautious on bit count and single bits
-  (and (= (count xs) 9)
-       (every? #(= 1 (bit-count %)) xs)
-       (= ninebits (reduce bit-or 0 xs))))
+(defn nine-bits? [xs]
+  (= ninebits (reduce bit-or 0 xs)))
 
 (defn solved?
   "A puzzle is solved if each unit is a permutation of the digits 1 to 9"
   [values]
-  (and values (every? nine-unique? (map #(map values %) ulist))))
+  (and values
+       (every? #(= 1 (bit-count %)) values)
+       (every? nine-bits? (map #(map values %) ulist))))
+
+
 
 #_
 (defn random-puzzle
