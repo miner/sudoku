@@ -175,8 +175,8 @@
 ;; (bit-and-not n c)  will clear bits in c
 
 
-
-(defn marked-bits [n]
+;; slower
+(defn marked-bits-ORIG [n]
   (filter #(bit-test n %) (range dim 0 -1)))
 
 ;; faster than marked-bits but returns bitfields (powers of 2) not bit indexes
@@ -186,6 +186,16 @@
       bs
       (let [h (Long/lowestOneBit n)]
         (recur (bit-and-not n h) (conj bs h))))))
+
+(defn marked-bits [^long n]
+  (loop [n n bs nil]
+    (if (zero? n)
+      bs
+      (let [h (Long/lowestOneBit n)]
+        (recur (bit-and-not n h) (conj bs (Long/numberOfTrailingZeros h)))))))
+
+
+
 
 (defn low-bit-index [^long n]
   (when-not (zero? n)
