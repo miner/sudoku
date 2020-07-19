@@ -232,24 +232,23 @@
   "Using depth-first search and propagation, try all possible values"
   [values]
   (when values
-    (let [scount (comp bit-count values)] ;digits remaining
-      (if (every? #(= 1 (scount %)) sqs)
+    (let [scount (comp bit-count values) ;digits remaining
+          live-squares (remove #(= 1 (scount %)) sqs)]
+      (if (empty? live-squares)
         values ;solved!
-        (let [s (apply min-key scount (remove #(= 1 (scount %)) sqs))]
+        (let [s (apply min-key scount live-squares)]
           (some identity (for [d (bitseq (values s))]
                            (search (assign values s d)))))))))
+
+
 
 (defn solve [grid] (-> grid parse-grid search))
 
 ;;; Utilities ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn sum [xs] (reduce + xs))
-
 (defn from-file [file]
   (with-open [rdr (io/reader file)]
     (doall (line-seq rdr))))
-  
-  
 
 ;;; System Test ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -263,7 +262,11 @@
        (every? bit-single? values)
        (every? nine-bits? (map #(map values %) ulist))))
 
-
+;; Use `(display values)` if you want to see state.
+;; `squars81` converts a solution back to conventional digits.  Used for testing.
+(defn squares81 [values]
+  (when (solved? values)
+    (mapv #(Long/numberOfTrailingZeros ^long %) values)))
 
 #_
 (defn random-puzzle
