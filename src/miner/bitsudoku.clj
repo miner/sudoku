@@ -1,6 +1,15 @@
-;;;; Translation of Peter Norvig's sudoku solver to idiomatic Clojure
+;;;; Translation of Peter Norvig's sudoku solver to Clojure
 ;;;; See http://norvig.com/sudoku.html
-;;;;
+
+;; Original:
+;; http://jkkramer.wordpress.com/2011/03/29/clojure-python-side-by-side/
+
+
+;;; SEM converted representation to use bits for possible values and 0-80 for square
+;;; identifiers.  This drifts away from original program, but gains about 3x performance.
+;;; Many commments below are obsolete because of the changes.
+
+;;;; [Obsolete notes]
 ;;;; Throughout this program we have:
 ;;;;   r is a row,     e.g. :a
 ;;;;   c is a column,  e.g. 3
@@ -10,12 +19,10 @@
 ;;;;   grid is a grid, e.g. 81 non-blank chars, e.g. starting with ".18...7..."
 ;;;;   values is a map of possible values, e.g. {[:a 1] #{1 2 3 9} [:a 2] #{8}}
 
-;; Original:
-;; http://jkkramer.wordpress.com/2011/03/29/clojure-python-side-by-side/
 ;; Slightly modified by SEM 3/30/11
-
 ;;; 07/17/20  10:41 by miner -- modernized a bit
 ;;; 07/18/20  14:36 by miner -- new idea, use bits instead of small sets
+
 
 (ns miner.bitsudoku
   (:require [clojure.string :as str])
@@ -31,15 +38,12 @@
 ;; row-major order  index = row * dim(9) + col
 ;; rows 0-8, cols 0-8 -- now zero-based instead of one-based
 
+;; possible values are set by bits (powers of two), not digit.
 
 ;; bits 1-9 set
 (def ninebits 1022)
 
 
-;; a long can represent square index and set of possible values
-;; zero for nothing
-;; col numbers represent as that col bit set 1-9
-;; :a - :i  represented as 11-19 (convenient non-overlapping bits)
 
 
 (defn xrc [x]
@@ -86,29 +90,6 @@
 
 
 
-
-;; KILL THIS SECTION
-(def -digits (set (range 1 10)))
-
-(def -rows [:a :b :c :d :e :f :g :h :i])
-(def -cols (range 1 10))
-(def -squares (for [r rows c cols] [r c]))
-(def -unitlist (concat (for [c cols] (for [r rows] [r c]))
-                      (for [r rows] (for [c cols] [r c]))
-                      (for [rs (partition 3 rows) cs (partition 3 cols)]
-                        (for [r rs c cs] [r c]))))
-(def -units (into {} (for [s squares]
-                      [s (for [u unitlist :when (some #{s} u)] u)])))
-(def -peers (into {} (for [s squares]
-                      [s (-> (reduce into #{} (units s)) (disj s))])))
-;; TO HERE
-
-
-
-
-
-
-
 (declare assign eliminate)
 
 ;;; Unit Tests ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -139,15 +120,15 @@
   (assert (= sqcnt (count grid)))
   (mapv (fn [^Character c]
                     (case c
-                      \1 1
-                      \2 2
-                      \3 3
-                      \4 4
-                      \5 5
-                      \6 6
-                      \7 7
-                      \8 8
-                      \9 9
+                      \1 2
+                      \2 4
+                      \3 8
+                      \4 16
+                      \5 32
+                      \6 64
+                      \7 128
+                      \8 256
+                      \9 512
                       nil))
         (seq grid)))
 
@@ -175,9 +156,6 @@
 ;; (bit-and-not n c)  will clear bits in c
 
 
-;; slower
-(defn marked-bits-ORIG [n]
-  (filter #(bit-test n %) (range dim 0 -1)))
 
 ;; faster than marked-bits but returns bitfields (powers of 2) not bit indexes
 (defn bitseq [^long n]
@@ -188,30 +166,12 @@
         (recur (bit-and-not n h) (conj bs h))))))
 
 (defn marked-bits [^long n]
-  (loop [n n bs nil]
-    (if (zero? n)
-      bs
-      (let [h (Long/lowestOneBit n)]
-        (recur (bit-and-not n h) (conj bs (Long/numberOfTrailingZeros h)))))))
+  (map #(Long/numberOfTrailingZeros %) (bitseq n)))
 
 
-
-
-(defn low-bit-index [^long n]
-  (when-not (zero? n)
-    (Long/numberOfTrailingZeros n)))
-
-(defn single-bit [^long n]
-  ;; assume bit-count = 1 from context
-  ;;(assert (= 1 (bit-count n)))
-  (Long/numberOfTrailingZeros n))
-
-;; not used
-(defn check-single-bit [n]
-  (if (= 1 (bit-count n))
-    n
-    -1))
-
+(defn bit-single? [^long n]
+  (= (Long/bitCount n) 1))
+  
 
 (defn assign
   "Whittle down the square at s to digit d by eliminating every digit
@@ -220,20 +180,21 @@
   [values s d]
   (reduce #(or (eliminate %1 s %2) (reduced nil))
           values
-          (marked-bits (bit-clear (values s) d))))
+          (bitseq (bit-and-not (values s) d))))
 
 
 (defn eliminate
   "Eliminate digit d from square s and do any appropriate constraint
   propogation"
   [values s d]
-  (if-not (bit-test (values s) d)
+  (if (zero? (bit-and (values s) d))
     values ;already eliminated
-    (when-not (= (bit-set 0 d) (values s)) ;can't remove last value
-      (let [values (update values s bit-clear d)
-            values (if (= 1 (bit-count (values s)))
+    (when-not (= d (values s)) ;can't remove last value
+      (let [values (update values s bit-and-not d)
+            single (when (bit-single? (values s)) (values s))
+            values (if single
                      ;; Only one digit left, eliminate it from peers
-                     (reduce #(or (eliminate %1 %2 (single-bit (%1 s))) (reduced nil))
+                     (reduce #(or (eliminate %1 %2 single) (reduced nil))
                              values
                              (vp s))
                      values)]
@@ -241,7 +202,7 @@
          (fn [values u]
            (if (nil? values)
              (reduced nil)
-             (let [dplaces (for [s u :when (bit-test (values s) d)] s)]
+             (let [dplaces (for [s u :when (pos? (bit-and (values s) d))] s)]
                (if-not (zero? (count dplaces)) ;must be a place for this value
                  (if (= 1 (count dplaces))
                    ;; Only one spot remaining for d in a unit -- assign it
@@ -274,8 +235,8 @@
     (let [scount (comp bit-count values)] ;digits remaining
       (if (every? #(= 1 (scount %)) sqs)
         values ;solved!
-        (let [s (apply min-key scount (filter #(< 1 (scount %)) sqs))]
-          (some identity (for [d (marked-bits (values s))]
+        (let [s (apply min-key scount (remove #(= 1 (scount %)) sqs))]
+          (some identity (for [d (bitseq (values s))]
                            (search (assign values s d)))))))))
 
 (defn solve [grid] (-> grid parse-grid search))
@@ -292,10 +253,6 @@
 
 ;;; System Test ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Slightly faster to make sorted-digits once from a sorted-set of digits
-(def sorted-digits (sort digits))
-
-
 (defn nine-bits? [xs]
   (= ninebits (reduce bit-or 0 xs)))
 
@@ -303,7 +260,7 @@
   "A puzzle is solved if each unit is a permutation of the digits 1 to 9"
   [values]
   (and values
-       (every? #(= 1 (bit-count %)) values)
+       (every? bit-single? values)
        (every? nine-bits? (map #(map values %) ulist))))
 
 
