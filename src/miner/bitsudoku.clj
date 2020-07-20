@@ -269,6 +269,22 @@
   (when (solved? values)
     (mapv #(Long/numberOfTrailingZeros ^long %) values)))
 
+
+(defn values->grid [values]
+  (str/join (map (fn [n] (if (bit-single? n)
+                           (Long/numberOfTrailingZeros ^long n)
+                           ".")) 
+                 values)))
+
+(defn confirm-grid [grid]
+  (let [solution (values->grid (solve grid))]
+    (and (= (count grid) (count solution) sqcnt)
+         (every? true? (map (fn [a b] (or (= a \.) (= a \0) (= a b)))
+                            (seq grid)
+                            (seq solution))))))
+
+
+
 #_
 (defn random-puzzle
   "Make a random puzzle with N or more assignments. Restart on contradictions."

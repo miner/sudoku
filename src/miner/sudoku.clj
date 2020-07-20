@@ -104,7 +104,7 @@
   (if-not ((values s) d)
     values ;already eliminated
     (when-not (= #{d} (values s)) ;can't remove last value
-      (let [values (update-in values [s] disj d)
+      (let [values (update values s disj d)
             values (if (= 1 (count (values s)))
                      ;; Only one digit left, eliminate it from peers
                      (reduce #(or (eliminate %1 %2 (first (%1 s))) (reduced nil))
@@ -208,7 +208,20 @@
    (solve-grids solve (from-file (io/file data-dir "hardest.txt")))
    true))
 
-  
+
+(defn values->grid [values]
+  (str/join (map (fn [sq] (let [v (values sq)]
+                            (if (= (count v) 1)
+                              (first v)
+                              ".")))
+                 squares)))
+
+(defn confirm-grid [grid]
+  (let [solution (values->grid (solve grid))]
+    (and (= (count grid) (count solution) sqcnt)
+         (every? true? (map (fn [a b] (or (= a \.) (= a \0) (= a b)))
+                            (seq grid)
+                            (seq solution))))))
 (comment
   (require 'criterium.core)
   (require '[miner.sudoku :as s])
