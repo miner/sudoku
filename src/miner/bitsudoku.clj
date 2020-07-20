@@ -157,7 +157,7 @@
 
 
 
-;; faster than marked-bits but returns bitfields (powers of 2) not bit indexes
+;; returns single bit longs (powers of 2)
 (defn bitseq [^long n]
   (loop [n n bs nil]
     (if (zero? n)
@@ -165,7 +165,8 @@
       (let [h (Long/lowestOneBit n)]
         (recur (bit-and-not n h) (conj bs h))))))
 
-(defn marked-bits [^long n]
+;; convert to conventional indices
+(defn bit-indices [^long n]
   (map #(Long/numberOfTrailingZeros %) (bitseq n)))
 
 
@@ -222,7 +223,7 @@
     (doseq [r rcs]
       (println (str/join (for [c rcs]
                        (format (str "%-" width "s%s")
-                               (str/join (marked-bits (values (sqi r c))))
+                               (str/join (bit-indices (values (sqi r c))))
                                (if (#{2 5} c) "|" "")))))
       (when (#{2 5} r) (println line)))))
 
