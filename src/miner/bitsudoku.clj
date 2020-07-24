@@ -219,12 +219,12 @@
   "Display values as a 2D grid"
   [values]
   (let [width (inc (apply max (map (comp bit-count values) sqs)))
-        line (str/join \+ (repeat 3 (str/join (repeat (* 3 width) \-))))]
+        line (str/join "+-" (repeat 3 (str/join (repeat (* 3 width) \-))))]
     (doseq [r rcs]
       (println (str/join (for [c rcs]
                        (format (str "%-" width "s%s")
                                (str/join (bit-indices (values (sqi r c))))
-                               (if (#{2 5} c) "|" "")))))
+                               (if (#{2 5} c) "| " "")))))
       (when (#{2 5} r) (println line)))))
 
 ;;; Search ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -306,6 +306,9 @@
 (def grid2 "4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......")
 (def hard1 ".....6....59.....82....8....45........3........6..3.54...325..6..................")
 
+;; example from Rosetta Code
+(def rcgrid "394002670000300400500690020045000900600000007007000580010067008009008000026400735")
+
 (def data-dir "resources/")
 
 (defn solve-grids [solve grids]
@@ -326,3 +329,6 @@
   (require '[miner.sudoku :as s])
   (criterium.core/quick-bench (s/run-bench s/solve))
   )
+
+
+
