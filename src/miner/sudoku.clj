@@ -34,6 +34,8 @@
 (def peers (into {} (for [s squares]
                       [s (-> (reduce into #{} (units s)) (disj s))])))
 
+(def sqcnt (count squares))
+
 (declare assign eliminate)
 
 ;;; Unit Tests ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
