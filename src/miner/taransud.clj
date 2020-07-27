@@ -84,10 +84,10 @@
 ;; Note the rc/n label convention
 (defn grid->filled-cells [grid]
   (let [values (mapv ch-value (seq grid))]
-    (for [i (range 9), j (range 9)
-          :let [n (values (+ (* i 9) j))]
-          :when (pos? n)]
-      [[i j] n])))
+    (set (for [i (range 9), j (range 9)
+               :let [n (values (+ (* i 9) j))]
+               :when (pos? n)]
+           [[i j] n]))))
 
 
 (defn filled-cells->values [cells]
