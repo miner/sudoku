@@ -80,12 +80,10 @@
 
 (defn row-results->values [rows]
   ;; constraints use n 0-8, must inc the n for display value
-  (persistent!
-   (reduce (fn [tv rcn] (assoc! tv (quot rcn 9) (inc (rem rcn 9))))
-           (transient (vec (repeat sqcnt 0)))
-           rows)))
+  (mapv #(inc (rem % 9)) (sort rows)))
 
- (defn ch-value [^Character c]
+
+(defn ch-value [^Character c]
     (case c
       \1 1
       \2 2
@@ -100,20 +98,20 @@
 
 
 (defn grid->filled-cells [grid]
-  (reduce-kv (fn [res rc n]
-               (if-not (zero? n)
-                 ;; constraints use n-1 for convenience
-                 (conj res (+ (* rc 9) (dec n)))
-                 res))
-             #{}
-             (mapv ch-value grid)))
+  (into #{}
+        (comp (map ch-value)
+              (keep-indexed (fn [rc n]
+                              (when-not (zero? n)
+                                ;; constraints use n-1 for convenience
+                                (+ (* rc 9) (dec n))))))
+        (seq grid)))
+
 
 ;; returns solution cells in rc/n
 (defn solve [grid]
   (first (t/dancing-links sudoku-constraints
                           :select-rows (grid->filled-cells grid)
                           :limit 1)))
-
 
 
 ;; translation cells back to values isn't slow -- that was my mistaken assumption
